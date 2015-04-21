@@ -87,11 +87,11 @@ Bind structure is filled with zeros when disabled. Valid bind are:
 | Byte | Type     | Content     |
 | ---- | -------- | ----------- |
 | 0    | byte     | Data type: 0x10 = key usage code, 0x20 = macro |
-| 1–2  | int16 be | Offset of the macro |
-| 3–4  | int16 be | Length of the macro |
+| 1–2  | int16 be | Offset in raw data |
+| 3–4  | int16 be | Length of data |
 
 
-Raw macro data (bRequest = 18)
+Send raw data (bRequest = 18)
 ------------------------------
 
 | Field        | Value  | Description            |
@@ -102,7 +102,7 @@ Raw macro data (bRequest = 18)
 | wIndex       | 1–3    | Target profile         |
 | wLength      |        | variable               |
 
-Data contains the raw macro items referenced in request 16.
+Data contains the raw macro items, key usage codes referenced in request 16.
 
 Known macro items are:
  - Key event
