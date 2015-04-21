@@ -86,7 +86,7 @@ Bind structure is filled with zeros when disabled. Valid bind are:
 
 | Byte | Type     | Content     |
 | ---- | -------- | ----------- |
-| 0    | byte     | 0x20
+| 0    | byte     | Data type: 0x10 = key usage code, 0x20 = macro |
 | 1–2  | int16 be | Offset of the macro |
 | 3–4  | int16 be | Length of the macro |
 
