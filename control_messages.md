@@ -3,6 +3,20 @@ USB Control Messages for the K90 keyboard
 
 Request type use the vendor bit so it is 0x40 for out messages and 0xC0 for in messages.
 
+? (bRequest = 1)
+----------------
+
+| Field        | Value  | Description            |
+| ------------ | ------ | ---------------------- |
+| bRequestType | 0x40   | vendor, device -> host |
+| bRequest     | 1      |                        |
+| wValue       | 0x0000 |                        |
+| wIndex       | 0      |                        |
+| wLength      | 0      |                        |
+
+Sent after the firmware, maybe for resetting the device.
+
+
 Macro mode requests (bRequest = 2)
 ----------------------------------
 
@@ -11,6 +25,7 @@ Macro mode requests (bRequest = 2)
 | bRequestType | 0x40   | vendor, host -> device |
 | bRequest     | 2      | macro mode operations  |
 | wValue       | 0x0001 | Hardware mode          |
+|              | 0x0010 | Firmware update mode   |
 |              | 0x0030 | Software mode          |
 |              | 0x0020 | Blink MR LED           |
 |              | 0x0040 | Stop MR LED            |
@@ -43,7 +58,7 @@ Response data is:
 | 7    | 1–3   | Current profile |
 
 
-Unknown query (bRequest = 5)
+Mode query (bRequest = 5)
 ----------------------------
 
 | Field        | Value  | Description            |
@@ -58,8 +73,18 @@ Response data is:
 
 | Byte | Value | Description |
 | ---- | ----- | ----------- |
-| 0    | 0x01  | ?           |
+| 0    |       | Device mode |
 | 1    | 0x01  | ?           |
+
+Device mode uses the same values as the set mode request (bRequest = 2):
+
+| Value | Mode                   |
+| ----- | ---------------------- |
+| 0x01  | Hardware playback mode |
+| 0x10  | Firmware update mode   |
+| 0x30  | Software mode          |
+
+MR LED state does not change the mode.
 
 
 Macro bindings (bRequest = 16)
@@ -165,6 +190,50 @@ Key role structure is:
 | 1    | byte     | Playback type: 1 = play once, 2 = repeat while held, 3 = repeat until pressed again |
 
 Each element of this array is matched with the element of the same index in the bindings array. When the key whose usage is in this array is pressed the macro from the binding array is played. G keys need not to be sorted but usage for other keys will not work.
+
+
+? (bRequest = 32)
+-----------------
+
+| Field        | Value  | Description            |
+| ------------ | ------ | ---------------------- |
+| bRequestType | 0xC0   | vendor, device -> host |
+| bRequest     | 32     |                        |
+| wValue       | 0x0000 |                        |
+| wIndex       | 0      |                        |
+| wLength      | 16     |                        |
+
+Queried before switching to firmware mode.
+
+Data for my device is: `1B 02 30 03 01 36 6C 00 80 00 00 64 00 A0 03 00`. `01 36` could be the BCD firmware version (1.36).
+
+
+? (bRequest = 33)
+-----------------
+
+| Field        | Value  | Description            |
+| ------------ | ------ | ---------------------- |
+| bRequestType | 0x80   | vendor, host -> device |
+| bRequest     | 33     |                        |
+| wValue       | 0x0000 |                        |
+| wIndex       | 0      |                        |
+| wLength      | 0      |                        |
+
+Send before the firmware blob in firmware mode.
+
+
+Send Firmware data (bRequest = 35)
+----------------------------------
+
+| Field        | Value  | Description            |
+| ------------ | ------ | ---------------------- |
+| bRequestType | 0x80   | vendor, host -> device |
+| bRequest     | 35     |                        |
+| wValue       |        | Offset                 |
+| wIndex       | 0      |                        |
+| wLength      | 512    |                        |
+
+Corsair firmware update software send the firmware in blocks of 512 bytes starting at offset 0x8000. K90 1.36 firmware size is 27 kb, so offset goes from 0x8000 to 0xEA00 by 0x200 increments.
 
 
 Light brightness (bRequest = 49)
