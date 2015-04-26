@@ -24,12 +24,18 @@ struct k90_led {
 	struct work_struct work;
 };
 
+struct k90_profile {
+	struct device *dev;
+	int profile;
+};
+
 struct k90_drvdata {
 	int current_profile;
 	int macro_mode;
 	int meta_locked;
 	struct k90_led backlight;
 	struct k90_led record_led;
+	struct k90_profile profile[3];
 };
 
 #define K90_GKEY_COUNT	18
@@ -98,13 +104,19 @@ module_param_array_named(gkey_codes, k90_gkey_map, ushort, NULL, S_IRUGO);
 #define K90_REQUEST_GET_MODE 5
 #define K90_REQUEST_PROFILE 20
 
+#define K90_REQUEST_PROFILE_BINDINGS 16
+#define K90_REQUEST_PROFILE_KEYS 22
+#define K90_REQUEST_PROFILE_DATA 18
+
 #define K90_MACRO_MODE_SW 0x0030
 #define K90_MACRO_MODE_HW 0x0001
 
 #define K90_MACRO_LED_ON  0x0020
 #define K90_MACRO_LED_OFF 0x0040
 
-/* Strings */
+/* 
+ * LED class devices
+ */
 
 #define K90_BACKLIGHT_LED_SUFFIX ":blue:backlight"
 #define K90_RECORD_LED_SUFFIX ":red:record"
@@ -160,6 +172,10 @@ static void k90_record_led_work(struct work_struct *work) {
 		printk (KERN_WARNING "Failed to set record LED state (error: %d).\n", ret);
 	}
 }
+
+/*
+ * Keyboard attributes
+ */
 
 static ssize_t k90_show_macro_mode(struct device *dev, struct device_attribute *attr,
 		char *buf)
@@ -244,16 +260,122 @@ static DEVICE_ATTR(current_profile, 0644, k90_show_current_profile, k90_store_cu
 static struct attribute *k90_attrs[] = {
 	&dev_attr_macro_mode.attr,
 	&dev_attr_current_profile.attr,
-	NULL,
+	NULL
 };
 
 static const struct attribute_group k90_attr_group = {
 	.attrs = k90_attrs,
 };
 
+/*
+ * Profile device class and attributes
+ */
+
+static struct class *k90_profile_class;
+
+static ssize_t k90_profile_show_profile_number(struct device *dev, struct device_attribute *attr,
+		char *buf)
+{
+	struct k90_profile *data = dev_get_drvdata(dev);
+	return snprintf (buf, PAGE_SIZE, "%d\n", data->profile);
+
+}
+
+static ssize_t k90_profile_write_bindings(struct file *fp, struct kobject *kobj,
+		struct bin_attribute *attr, char *buf, loff_t off, size_t count)
+{
+	// TODO: handle bigger data
+	// TODO: check size
+	int ret;
+	struct device *pdev = container_of (kobj, struct device, kobj);
+	struct k90_profile *data = dev_get_drvdata(pdev);
+	struct usb_interface *usbif = to_usb_interface(pdev->parent->parent);
+	struct usb_device *usbdev = interface_to_usbdev(usbif);
+
+	if (0 != (ret = usb_control_msg(usbdev, usb_sndctrlpipe(usbdev, 0),
+			K90_REQUEST_PROFILE_BINDINGS,
+			USB_DIR_OUT|USB_TYPE_VENDOR|USB_RECIP_DEVICE,
+			0, data->profile, buf, count, USB_CTRL_SET_TIMEOUT))) {
+		return ret;
+	}
+	return count;
+}
+
+static ssize_t k90_profile_write_keys(struct file *fp, struct kobject *kobj,
+		struct bin_attribute *attr, char *buf, loff_t off, size_t count)
+{
+	// TODO: handle bigger data
+	// TODO: check size
+	int ret;
+	struct device *pdev = container_of (kobj, struct device, kobj);
+	struct k90_profile *data = dev_get_drvdata(pdev);
+	struct usb_interface *usbif = to_usb_interface(pdev->parent->parent);
+	struct usb_device *usbdev = interface_to_usbdev(usbif);
+
+	if (0 != (ret = usb_control_msg(usbdev, usb_sndctrlpipe(usbdev, 0),
+			K90_REQUEST_PROFILE_KEYS,
+			USB_DIR_OUT|USB_TYPE_VENDOR|USB_RECIP_DEVICE,
+			0, data->profile, buf, count, USB_CTRL_SET_TIMEOUT))) {
+		return ret;
+	}
+	return count;
+}
+
+static ssize_t k90_profile_write_data(struct file *fp, struct kobject *kobj,
+		struct bin_attribute *attr, char *buf, loff_t off, size_t count)
+{
+	// TODO: handle bigger data
+	// TODO: check size
+	int ret;
+	struct device *pdev = container_of (kobj, struct device, kobj);
+	struct k90_profile *data = dev_get_drvdata(pdev);
+	struct usb_interface *usbif = to_usb_interface(pdev->parent->parent);
+	struct usb_device *usbdev = interface_to_usbdev(usbif);
+
+	if (0 != (ret = usb_control_msg(usbdev, usb_sndctrlpipe(usbdev, 0),
+			K90_REQUEST_PROFILE_DATA,
+			USB_DIR_OUT|USB_TYPE_VENDOR|USB_RECIP_DEVICE,
+			0, data->profile, buf, count, USB_CTRL_SET_TIMEOUT))) {
+		return ret;
+	}
+	return count;
+}
+
+
+static DEVICE_ATTR(profile_number, 0444, k90_profile_show_profile_number, NULL);
+static BIN_ATTR(bindings, 0200, NULL, k90_profile_write_bindings, 0);
+static BIN_ATTR(keys, 0200, NULL, k90_profile_write_keys, 0);
+static BIN_ATTR(data, 0200, NULL, k90_profile_write_data, 0);
+
+static struct attribute *k90_profile_attrs[] = {
+	&dev_attr_profile_number.attr,
+	NULL
+};
+
+static struct bin_attribute *k90_profile_bin_attrs[] = {
+	&bin_attr_bindings,
+	&bin_attr_keys,
+	&bin_attr_data,
+	NULL
+};
+
+static const struct attribute_group k90_profile_attr_group = {
+	.attrs = k90_profile_attrs,
+	.bin_attrs = k90_profile_bin_attrs,
+};
+
+static const struct attribute_group *k90_profile_attr_groups[] = {
+	&k90_profile_attr_group,
+	NULL
+};
+
+/*
+ * Driver functions
+ */
+
 static int k90_init_special_functions(struct hid_device *dev)
 {
-	int ret;
+	int ret, i;
 	struct usb_interface *usbif = to_usb_interface(dev->dev.parent);
 	struct usb_device *usbdev = interface_to_usbdev(usbif);
 	char data[8];
@@ -335,6 +457,22 @@ static int k90_init_special_functions(struct hid_device *dev)
 		goto fail_record_led;
 	}
 
+	/* Create profile devices */
+	for (i = 0; i < 3; ++i) {
+		drvdata->profile[i].profile = i+1;
+		drvdata->profile[i].dev = device_create_with_groups (
+				k90_profile_class, &dev->dev, 0,
+				&drvdata->profile[i], k90_profile_attr_groups,
+				"%s:profile%d", dev_name(&dev->dev), i+1);
+		if (IS_ERR(drvdata->profile[i].dev)) {
+			ret = PTR_ERR(drvdata->profile[i].dev);
+			for (i = i-1; i >= 0; --i) {
+				device_unregister (drvdata->profile[i].dev);
+			}
+			goto fail_profile;
+		}
+	}
+
 	/* Init attributes */
 	if (0 != (ret = sysfs_create_group(&dev->dev.kobj, &k90_attr_group))) {
 		goto fail_sysfs;
@@ -343,6 +481,10 @@ static int k90_init_special_functions(struct hid_device *dev)
 	return 0;
 
 fail_sysfs:
+	for (i = 0; i < 3; ++i) {
+		device_unregister (drvdata->profile[i].dev);
+	}
+fail_profile:
 	led_classdev_unregister (&drvdata->record_led.cdev);
 	flush_work (&drvdata->record_led.work);
 fail_record_led:
@@ -357,10 +499,14 @@ fail_drvdata:
 
 static void k90_cleanup_special_functions(struct hid_device *dev)
 {
+	int i;
 	struct k90_drvdata *drvdata = hid_get_drvdata (dev);
 
 	if (drvdata) {
 		sysfs_remove_group(&dev->dev.kobj, &k90_attr_group);
+		for (i = 0; i < 3; ++i) {
+			device_unregister (drvdata->profile[i].dev);
+		}
 		led_classdev_unregister (&drvdata->record_led.cdev);
 		led_classdev_unregister (&drvdata->backlight.cdev);
 		flush_work (&drvdata->record_led.work);
@@ -477,11 +623,17 @@ static struct hid_driver k90_driver = {
 	.input_mapping = k90_input_mapping,
 };
 
-static int k90_init(void)
+static int __init k90_init(void)
 {
 	int ret;
 
+	k90_profile_class = class_create(THIS_MODULE, "k90_profile");
+	if (IS_ERR(k90_profile_class)) {
+		return PTR_ERR(k90_profile_class);
+	}
+
 	if (0 != (ret = hid_register_driver(&k90_driver))) {
+		class_destroy(k90_profile_class);
 		return ret;
 	}
 
@@ -491,6 +643,7 @@ static int k90_init(void)
 static void k90_exit(void)
 {
 	hid_unregister_driver(&k90_driver);
+	class_destroy(k90_profile_class);
 }
 
 module_init(k90_init);
