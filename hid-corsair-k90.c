@@ -88,6 +88,7 @@ module_param_array_named(gkey_codes, k90_gkey_map, ushort, NULL, S_IRUGO);
 #define K90_REQUEST_BRIGHTNESS 49
 #define K90_REQUEST_MACRO_MODE 2
 #define K90_REQUEST_STATUS 4
+#define K90_REQUEST_GET_MODE 5
 #define K90_REQUEST_PROFILE 20
 
 #define K90_MACRO_MODE_SW 0x0030
@@ -292,6 +293,24 @@ static int k90_init_special_functions(struct hid_device *dev)
 		else {
 			drvdata->brightness = data[4];
 			drvdata->current_profile = data[7];
+		}
+		if ((ret = usb_control_msg(usbdev, usb_rcvctrlpipe(usbdev, 0),
+				K90_REQUEST_GET_MODE,
+				USB_DIR_IN|USB_TYPE_VENDOR|USB_RECIP_DEVICE,
+				0, 0, data, 2, USB_CTRL_SET_TIMEOUT)) < 0) {
+			printk (KERN_WARNING "Failed to get K90 initial mode (error %d).\n", ret);
+		}
+		else {
+			switch (data[0]) {
+			case K90_MACRO_MODE_HW:
+				drvdata->macro_mode = 1;
+				break;
+			case K90_MACRO_MODE_SW:
+				drvdata->macro_mode = 0;
+				break;
+			default:
+				printk (KERN_WARNING "K90 in unknown mode: %02x.\n", data[0]);
+			}
 		}
 		hid_set_drvdata (dev, drvdata);
 
