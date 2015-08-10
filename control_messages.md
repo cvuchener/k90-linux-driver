@@ -115,6 +115,8 @@ Bind structure is filled with zeros when disabled. Valid bind are:
 | 1–2  | int16 be | Offset in raw data |
 | 3–4  | int16 be | Length of data |
 
+Data length must not exceed 128 (or the keyboard will block until reset).
+
 
 Send raw data (bRequest = 18)
 ------------------------------
@@ -186,10 +188,14 @@ Key role structure is:
 
 | Byte | Type     | Content     |
 | ---- | -------- | ----------- |
-| 0    | byte     | Key usage (only G key usage works) |
+| 0    | byte     | Key usage |
 | 1    | byte     | Playback type: 1 = play once, 2 = repeat while held, 3 = repeat until pressed again |
 
-Each element of this array is matched with the element of the same index in the bindings array. When the key whose usage is in this array is pressed the macro from the binding array is played. G keys need not to be sorted but usage for other keys will not work.
+Each element of this array is matched with the element of the same index in the bindings array. When the key whose usage is in this array is pressed the macro from the binding array is played.
+
+The key usage seems to be read only in the sixteen first items, key usage for a non G-key may be used there. If a usage for the key G*k* is not present, it will use the *k*th item in this list anyway, so the macro will actually be bound to two keys the one whose usage is given here and the G-key of corresponding rank.
+
+The playback is only used by macros (0x20 binding type) not by key usage bindings (0x10).
 
 
 ? (bRequest = 32)
