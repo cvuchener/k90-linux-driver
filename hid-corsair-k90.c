@@ -108,6 +108,10 @@ module_param_array_named(gkey_codes, k90_gkey_map, ushort, NULL, S_IRUGO);
 #define K90_REQUEST_PROFILE_KEYS 22
 #define K90_REQUEST_PROFILE_DATA 18
 
+#define K90_BINDINGS_MAX_LENGTH 128
+#define K90_KEYS_MAX_LENGTH 64
+#define K90_DATA_MAX_LENGTH 4096 // May be higher but that is the maximum I tested
+
 #define K90_MACRO_MODE_SW 0x0030
 #define K90_MACRO_MODE_HW 0x0001
 
@@ -284,13 +288,14 @@ static ssize_t k90_profile_show_profile_number(struct device *dev, struct device
 static ssize_t k90_profile_write_bindings(struct file *fp, struct kobject *kobj,
 		struct bin_attribute *attr, char *buf, loff_t off, size_t count)
 {
-	// TODO: handle bigger data
-	// TODO: check size
 	int ret;
 	struct device *pdev = container_of (kobj, struct device, kobj);
 	struct k90_profile *data = dev_get_drvdata(pdev);
 	struct usb_interface *usbif = to_usb_interface(pdev->parent->parent);
 	struct usb_device *usbdev = interface_to_usbdev(usbif);
+
+	if (count > K90_BINDINGS_MAX_LENGTH)
+		return -EMSGSIZE;
 
 	if (0 != (ret = usb_control_msg(usbdev, usb_sndctrlpipe(usbdev, 0),
 			K90_REQUEST_PROFILE_BINDINGS,
@@ -304,13 +309,14 @@ static ssize_t k90_profile_write_bindings(struct file *fp, struct kobject *kobj,
 static ssize_t k90_profile_write_keys(struct file *fp, struct kobject *kobj,
 		struct bin_attribute *attr, char *buf, loff_t off, size_t count)
 {
-	// TODO: handle bigger data
-	// TODO: check size
 	int ret;
 	struct device *pdev = container_of (kobj, struct device, kobj);
 	struct k90_profile *data = dev_get_drvdata(pdev);
 	struct usb_interface *usbif = to_usb_interface(pdev->parent->parent);
 	struct usb_device *usbdev = interface_to_usbdev(usbif);
+
+	if (count > K90_KEYS_MAX_LENGTH)
+		return -EMSGSIZE;
 
 	if (0 != (ret = usb_control_msg(usbdev, usb_sndctrlpipe(usbdev, 0),
 			K90_REQUEST_PROFILE_KEYS,
@@ -324,13 +330,14 @@ static ssize_t k90_profile_write_keys(struct file *fp, struct kobject *kobj,
 static ssize_t k90_profile_write_data(struct file *fp, struct kobject *kobj,
 		struct bin_attribute *attr, char *buf, loff_t off, size_t count)
 {
-	// TODO: handle bigger data
-	// TODO: check size
 	int ret;
 	struct device *pdev = container_of (kobj, struct device, kobj);
 	struct k90_profile *data = dev_get_drvdata(pdev);
 	struct usb_interface *usbif = to_usb_interface(pdev->parent->parent);
 	struct usb_device *usbdev = interface_to_usbdev(usbif);
+
+	if (count > K90_DATA_MAX_LENGTH)
+		return -EMSGSIZE;
 
 	if (0 != (ret = usb_control_msg(usbdev, usb_sndctrlpipe(usbdev, 0),
 			K90_REQUEST_PROFILE_DATA,

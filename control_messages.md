@@ -197,6 +197,7 @@ The key usage seems to be read only in the sixteen first items, key usage for a 
 
 The playback is only used by macros (0x20 binding type) not by key usage bindings (0x10).
 
+Maximum data length is 64.
 
 ? (bRequest = 32)
 -----------------
