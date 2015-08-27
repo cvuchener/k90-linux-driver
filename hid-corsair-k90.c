@@ -53,24 +53,24 @@ static int k90_usage_to_gkey(unsigned int usage) {
 }
 
 static unsigned short k90_gkey_map[K90_GKEY_COUNT] = {
-	KEY_F13,
-	KEY_F14,
-	KEY_F15,
-	KEY_F16,
-	KEY_F17,
-	KEY_F18,
-	KEY_F19,
-	KEY_F20,
-	KEY_F21,
-	KEY_F22,
-	KEY_F23,
-	KEY_F24,
-	BTN_MISC+0,
-	BTN_MISC+1,
-	BTN_MISC+2,
-	BTN_MISC+3,
-	BTN_MISC+4,
-	BTN_MISC+5,
+	BTN_TRIGGER_HAPPY1,
+	BTN_TRIGGER_HAPPY2,
+	BTN_TRIGGER_HAPPY3,
+	BTN_TRIGGER_HAPPY4,
+	BTN_TRIGGER_HAPPY5,
+	BTN_TRIGGER_HAPPY6,
+	BTN_TRIGGER_HAPPY7,
+	BTN_TRIGGER_HAPPY8,
+	BTN_TRIGGER_HAPPY9,
+	BTN_TRIGGER_HAPPY10,
+	BTN_TRIGGER_HAPPY11,
+	BTN_TRIGGER_HAPPY12,
+	BTN_TRIGGER_HAPPY13,
+	BTN_TRIGGER_HAPPY14,
+	BTN_TRIGGER_HAPPY15,
+	BTN_TRIGGER_HAPPY16,
+	BTN_TRIGGER_HAPPY17,
+	BTN_TRIGGER_HAPPY18,
 };
 module_param_array_named(gkey_codes, k90_gkey_map, ushort, NULL, S_IRUGO);
 
@@ -583,7 +583,7 @@ static int k90_event(struct hid_device *dev, struct hid_field *field,
 		drvdata->meta_locked = 0;
 		break;
 	case K90_USAGE_META_ON:
-		drvdata->meta_locked = 0;
+		drvdata->meta_locked = 1;
 		break;
 	case K90_USAGE_LIGHT_OFF:
 	case K90_USAGE_LIGHT_DIM:
