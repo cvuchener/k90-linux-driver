@@ -40,7 +40,8 @@ struct k90_drvdata {
 
 #define K90_GKEY_COUNT	18
 
-static int k90_usage_to_gkey(unsigned int usage) {
+static int k90_usage_to_gkey(unsigned int usage)
+{
 	/* G1 (0xd0) to G16 (0xdf) */
 	if (usage >= 0xd0 && usage <= 0xdf) {
 		return usage - 0xd0 + 1;
@@ -72,6 +73,7 @@ static unsigned short k90_gkey_map[K90_GKEY_COUNT] = {
 	BTN_TRIGGER_HAPPY17,
 	BTN_TRIGGER_HAPPY18,
 };
+
 module_param_array_named(gkey_codes, k90_gkey_map, ushort, NULL, S_IRUGO);
 
 #define K90_USAGE_SPECIAL_MIN 0xf0
@@ -110,7 +112,7 @@ module_param_array_named(gkey_codes, k90_gkey_map, ushort, NULL, S_IRUGO);
 
 #define K90_BINDINGS_MAX_LENGTH 128
 #define K90_KEYS_MAX_LENGTH 64
-#define K90_DATA_MAX_LENGTH 4096 // May be higher but that is the maximum I tested
+#define K90_DATA_MAX_LENGTH 4096	// May be higher but that is the maximum I tested
 
 #define K90_MACRO_MODE_SW 0x0030
 #define K90_MACRO_MODE_HW 0x0001
@@ -127,36 +129,41 @@ module_param_array_named(gkey_codes, k90_gkey_map, ushort, NULL, S_IRUGO);
 
 static enum led_brightness k90_brightness_get(struct led_classdev *led_cdev)
 {
-	struct k90_led *led = container_of (led_cdev, struct k90_led, cdev);
+	struct k90_led *led = container_of(led_cdev, struct k90_led, cdev);
 	return led->brightness;
 }
 
 static void k90_brightness_set(struct led_classdev *led_cdev,
-		enum led_brightness brightness)
+			       enum led_brightness brightness)
 {
-	struct k90_led *led = container_of (led_cdev, struct k90_led, cdev);
+	struct k90_led *led = container_of(led_cdev, struct k90_led, cdev);
 	led->brightness = brightness;
-	schedule_work (&led->work);
+	schedule_work(&led->work);
 }
 
-static void k90_backlight_work(struct work_struct *work) {
+static void k90_backlight_work(struct work_struct *work)
+{
 	int ret;
-	struct k90_led *led = container_of (work, struct k90_led, work);
+	struct k90_led *led = container_of(work, struct k90_led, work);
 	struct device *dev = led->cdev.dev->parent;
 	struct usb_interface *usbif = to_usb_interface(dev->parent);
 	struct usb_device *usbdev = interface_to_usbdev(usbif);
 
 	if (0 != (ret = usb_control_msg(usbdev, usb_sndctrlpipe(usbdev, 0),
-			K90_REQUEST_BRIGHTNESS,
-			USB_DIR_OUT|USB_TYPE_VENDOR|USB_RECIP_DEVICE,
-			led->brightness, 0, NULL, 0, USB_CTRL_SET_TIMEOUT))) {
-		printk (KERN_WARNING "Failed to set backlight brightness (error: %d).\n", ret);
+					K90_REQUEST_BRIGHTNESS,
+					USB_DIR_OUT | USB_TYPE_VENDOR |
+					USB_RECIP_DEVICE, led->brightness, 0,
+					NULL, 0, USB_CTRL_SET_TIMEOUT))) {
+		printk(KERN_WARNING
+		       "Failed to set backlight brightness (error: %d).\n",
+		       ret);
 	}
 }
 
-static void k90_record_led_work(struct work_struct *work) {
+static void k90_record_led_work(struct work_struct *work)
+{
 	int ret;
-	struct k90_led *led = container_of (work, struct k90_led, work);
+	struct k90_led *led = container_of(work, struct k90_led, work);
 	struct device *dev = led->cdev.dev->parent;
 	struct usb_interface *usbif = to_usb_interface(dev->parent);
 	struct usb_device *usbdev = interface_to_usbdev(usbif);
@@ -164,16 +171,17 @@ static void k90_record_led_work(struct work_struct *work) {
 
 	if (led->brightness > 0) {
 		value = K90_MACRO_LED_ON;
-	}
-	else {
+	} else {
 		value = K90_MACRO_LED_OFF;
 	}
 
 	if (0 != (ret = usb_control_msg(usbdev, usb_sndctrlpipe(usbdev, 0),
-			K90_REQUEST_MACRO_MODE,
-			USB_DIR_OUT|USB_TYPE_VENDOR|USB_RECIP_DEVICE,
-			value, 0, NULL, 0, USB_CTRL_SET_TIMEOUT))) {
-		printk (KERN_WARNING "Failed to set record LED state (error: %d).\n", ret);
+					K90_REQUEST_MACRO_MODE,
+					USB_DIR_OUT | USB_TYPE_VENDOR |
+					USB_RECIP_DEVICE, value, 0, NULL, 0,
+					USB_CTRL_SET_TIMEOUT))) {
+		printk(KERN_WARNING
+		       "Failed to set record LED state (error: %d).\n", ret);
 	}
 }
 
@@ -181,39 +189,40 @@ static void k90_record_led_work(struct work_struct *work) {
  * Keyboard attributes
  */
 
-static ssize_t k90_show_macro_mode(struct device *dev, struct device_attribute *attr,
-		char *buf)
+static ssize_t k90_show_macro_mode(struct device *dev,
+				   struct device_attribute *attr, char *buf)
 {
-	struct k90_drvdata *drvdata = dev_get_drvdata (dev);
+	struct k90_drvdata *drvdata = dev_get_drvdata(dev);
 	if (!drvdata) {
 		return -ENOSYS;
 	}
-	return snprintf (buf, PAGE_SIZE, "%s\n", (drvdata->macro_mode ? "HW" : "SW"));
+	return snprintf(buf, PAGE_SIZE, "%s\n",
+			(drvdata->macro_mode ? "HW" : "SW"));
 }
 
-static ssize_t k90_store_macro_mode(struct device *dev, struct device_attribute *attr,
-		const char *buf, size_t count)
+static ssize_t k90_store_macro_mode(struct device *dev,
+				    struct device_attribute *attr,
+				    const char *buf, size_t count)
 {
 	int ret;
 	struct usb_interface *usbif = to_usb_interface(dev->parent);
 	struct usb_device *usbdev = interface_to_usbdev(usbif);
-	struct k90_drvdata *drvdata = dev_get_drvdata (dev);
+	struct k90_drvdata *drvdata = dev_get_drvdata(dev);
 	__u16 value;
-	
+
 	if (strncmp(buf, "SW", 2) == 0) {
 		value = K90_MACRO_MODE_SW;
-	}
-	else if (strncmp(buf, "HW", 2) == 0) {
+	} else if (strncmp(buf, "HW", 2) == 0) {
 		value = K90_MACRO_MODE_HW;
-	}
-	else {
+	} else {
 		return -EINVAL;
 	}
 
 	if (0 != (ret = usb_control_msg(usbdev, usb_sndctrlpipe(usbdev, 0),
-			K90_REQUEST_MACRO_MODE,
-			USB_DIR_OUT|USB_TYPE_VENDOR|USB_RECIP_DEVICE,
-			value, 0, NULL, 0, USB_CTRL_SET_TIMEOUT))) {
+					K90_REQUEST_MACRO_MODE,
+					USB_DIR_OUT | USB_TYPE_VENDOR |
+					USB_RECIP_DEVICE, value, 0, NULL, 0,
+					USB_CTRL_SET_TIMEOUT))) {
 		return ret;
 	}
 	drvdata->macro_mode = (value == K90_MACRO_MODE_HW);
@@ -221,23 +230,25 @@ static ssize_t k90_store_macro_mode(struct device *dev, struct device_attribute 
 	return count;
 }
 
-static ssize_t k90_show_current_profile(struct device *dev, struct device_attribute *attr,
-		char *buf)
+static ssize_t k90_show_current_profile(struct device *dev,
+					struct device_attribute *attr,
+					char *buf)
 {
-	struct k90_drvdata *drvdata = dev_get_drvdata (dev);
+	struct k90_drvdata *drvdata = dev_get_drvdata(dev);
 	if (!drvdata) {
 		return -ENOSYS;
 	}
-	return snprintf (buf, PAGE_SIZE, "%d\n", drvdata->current_profile);
+	return snprintf(buf, PAGE_SIZE, "%d\n", drvdata->current_profile);
 }
 
-static ssize_t k90_store_current_profile(struct device *dev, struct device_attribute *attr,
-		const char *buf, size_t count)
+static ssize_t k90_store_current_profile(struct device *dev,
+					 struct device_attribute *attr,
+					 const char *buf, size_t count)
 {
 	int ret;
 	struct usb_interface *usbif = to_usb_interface(dev->parent);
 	struct usb_device *usbdev = interface_to_usbdev(usbif);
-	struct k90_drvdata *drvdata = dev_get_drvdata (dev);
+	struct k90_drvdata *drvdata = dev_get_drvdata(dev);
 	int profile;
 
 	if (kstrtoint(buf, 10, &profile)) {
@@ -248,9 +259,10 @@ static ssize_t k90_store_current_profile(struct device *dev, struct device_attri
 	}
 
 	if (0 != (ret = usb_control_msg(usbdev, usb_sndctrlpipe(usbdev, 0),
-			K90_REQUEST_PROFILE,
-			USB_DIR_OUT|USB_TYPE_VENDOR|USB_RECIP_DEVICE,
-			profile, 0, NULL, 0, USB_CTRL_SET_TIMEOUT))) {
+					K90_REQUEST_PROFILE,
+					USB_DIR_OUT | USB_TYPE_VENDOR |
+					USB_RECIP_DEVICE, profile, 0, NULL, 0,
+					USB_CTRL_SET_TIMEOUT))) {
 		return ret;
 	}
 	drvdata->current_profile = profile;
@@ -259,7 +271,8 @@ static ssize_t k90_store_current_profile(struct device *dev, struct device_attri
 }
 
 static DEVICE_ATTR(macro_mode, 0644, k90_show_macro_mode, k90_store_macro_mode);
-static DEVICE_ATTR(current_profile, 0644, k90_show_current_profile, k90_store_current_profile);
+static DEVICE_ATTR(current_profile, 0644, k90_show_current_profile,
+		   k90_store_current_profile);
 
 static struct attribute *k90_attrs[] = {
 	&dev_attr_macro_mode.attr,
@@ -277,19 +290,21 @@ static const struct attribute_group k90_attr_group = {
 
 static struct class *k90_profile_class;
 
-static ssize_t k90_profile_show_profile_number(struct device *dev, struct device_attribute *attr,
-		char *buf)
+static ssize_t k90_profile_show_profile_number(struct device *dev,
+					       struct device_attribute *attr,
+					       char *buf)
 {
 	struct k90_profile *data = dev_get_drvdata(dev);
-	return snprintf (buf, PAGE_SIZE, "%d\n", data->profile);
+	return snprintf(buf, PAGE_SIZE, "%d\n", data->profile);
 
 }
 
 static ssize_t k90_profile_write_bindings(struct file *fp, struct kobject *kobj,
-		struct bin_attribute *attr, char *buf, loff_t off, size_t count)
+					  struct bin_attribute *attr, char *buf,
+					  loff_t off, size_t count)
 {
 	int ret;
-	struct device *pdev = container_of (kobj, struct device, kobj);
+	struct device *pdev = container_of(kobj, struct device, kobj);
 	struct k90_profile *data = dev_get_drvdata(pdev);
 	struct usb_interface *usbif = to_usb_interface(pdev->parent->parent);
 	struct usb_device *usbdev = interface_to_usbdev(usbif);
@@ -298,19 +313,21 @@ static ssize_t k90_profile_write_bindings(struct file *fp, struct kobject *kobj,
 		return -EMSGSIZE;
 
 	if (0 != (ret = usb_control_msg(usbdev, usb_sndctrlpipe(usbdev, 0),
-			K90_REQUEST_PROFILE_BINDINGS,
-			USB_DIR_OUT|USB_TYPE_VENDOR|USB_RECIP_DEVICE,
-			0, data->profile, buf, count, USB_CTRL_SET_TIMEOUT))) {
+					K90_REQUEST_PROFILE_BINDINGS,
+					USB_DIR_OUT | USB_TYPE_VENDOR |
+					USB_RECIP_DEVICE, 0, data->profile, buf,
+					count, USB_CTRL_SET_TIMEOUT))) {
 		return ret;
 	}
 	return count;
 }
 
 static ssize_t k90_profile_write_keys(struct file *fp, struct kobject *kobj,
-		struct bin_attribute *attr, char *buf, loff_t off, size_t count)
+				      struct bin_attribute *attr, char *buf,
+				      loff_t off, size_t count)
 {
 	int ret;
-	struct device *pdev = container_of (kobj, struct device, kobj);
+	struct device *pdev = container_of(kobj, struct device, kobj);
 	struct k90_profile *data = dev_get_drvdata(pdev);
 	struct usb_interface *usbif = to_usb_interface(pdev->parent->parent);
 	struct usb_device *usbdev = interface_to_usbdev(usbif);
@@ -319,19 +336,21 @@ static ssize_t k90_profile_write_keys(struct file *fp, struct kobject *kobj,
 		return -EMSGSIZE;
 
 	if (0 != (ret = usb_control_msg(usbdev, usb_sndctrlpipe(usbdev, 0),
-			K90_REQUEST_PROFILE_KEYS,
-			USB_DIR_OUT|USB_TYPE_VENDOR|USB_RECIP_DEVICE,
-			0, data->profile, buf, count, USB_CTRL_SET_TIMEOUT))) {
+					K90_REQUEST_PROFILE_KEYS,
+					USB_DIR_OUT | USB_TYPE_VENDOR |
+					USB_RECIP_DEVICE, 0, data->profile, buf,
+					count, USB_CTRL_SET_TIMEOUT))) {
 		return ret;
 	}
 	return count;
 }
 
 static ssize_t k90_profile_write_data(struct file *fp, struct kobject *kobj,
-		struct bin_attribute *attr, char *buf, loff_t off, size_t count)
+				      struct bin_attribute *attr, char *buf,
+				      loff_t off, size_t count)
 {
 	int ret;
-	struct device *pdev = container_of (kobj, struct device, kobj);
+	struct device *pdev = container_of(kobj, struct device, kobj);
 	struct k90_profile *data = dev_get_drvdata(pdev);
 	struct usb_interface *usbif = to_usb_interface(pdev->parent->parent);
 	struct usb_device *usbdev = interface_to_usbdev(usbif);
@@ -340,14 +359,14 @@ static ssize_t k90_profile_write_data(struct file *fp, struct kobject *kobj,
 		return -EMSGSIZE;
 
 	if (0 != (ret = usb_control_msg(usbdev, usb_sndctrlpipe(usbdev, 0),
-			K90_REQUEST_PROFILE_DATA,
-			USB_DIR_OUT|USB_TYPE_VENDOR|USB_RECIP_DEVICE,
-			0, data->profile, buf, count, USB_CTRL_SET_TIMEOUT))) {
+					K90_REQUEST_PROFILE_DATA,
+					USB_DIR_OUT | USB_TYPE_VENDOR |
+					USB_RECIP_DEVICE, 0, data->profile, buf,
+					count, USB_CTRL_SET_TIMEOUT))) {
 		return ret;
 	}
 	return count;
 }
-
 
 static DEVICE_ATTR(profile_number, 0444, k90_profile_show_profile_number, NULL);
 static BIN_ATTR(bindings, 0200, NULL, k90_profile_write_bindings, 0);
@@ -386,7 +405,8 @@ static int k90_init_special_functions(struct hid_device *dev)
 	struct usb_interface *usbif = to_usb_interface(dev->dev.parent);
 	struct usb_device *usbdev = interface_to_usbdev(usbif);
 	char data[8];
-	struct k90_drvdata *drvdata = kzalloc (sizeof (struct k90_drvdata), GFP_KERNEL);
+	struct k90_drvdata *drvdata =
+	    kzalloc(sizeof(struct k90_drvdata), GFP_KERNEL);
 	size_t name_sz;
 	char *name;
 	struct k90_led *led;
@@ -395,29 +415,31 @@ static int k90_init_special_functions(struct hid_device *dev)
 		ret = -ENOMEM;
 		goto fail_drvdata;
 	}
-	hid_set_drvdata (dev, drvdata);
+	hid_set_drvdata(dev, drvdata);
 
 	/* Get current status */
 	if ((ret = usb_control_msg(usbdev, usb_rcvctrlpipe(usbdev, 0),
-			K90_REQUEST_STATUS,
-			USB_DIR_IN|USB_TYPE_VENDOR|USB_RECIP_DEVICE,
-			0, 0, data, 8, USB_CTRL_SET_TIMEOUT)) < 0) {
-		printk (KERN_WARNING "Failed to get K90 initial state (error %d).\n", ret);
+				   K90_REQUEST_STATUS,
+				   USB_DIR_IN | USB_TYPE_VENDOR |
+				   USB_RECIP_DEVICE, 0, 0, data, 8,
+				   USB_CTRL_SET_TIMEOUT)) < 0) {
+		printk(KERN_WARNING
+		       "Failed to get K90 initial state (error %d).\n", ret);
 		drvdata->backlight.brightness = 0;
 		drvdata->current_profile = 1;
-	}
-	else {
+	} else {
 		drvdata->backlight.brightness = data[4];
 		drvdata->current_profile = data[7];
 	}
 	/* Get current mode */
 	if ((ret = usb_control_msg(usbdev, usb_rcvctrlpipe(usbdev, 0),
-			K90_REQUEST_GET_MODE,
-			USB_DIR_IN|USB_TYPE_VENDOR|USB_RECIP_DEVICE,
-			0, 0, data, 2, USB_CTRL_SET_TIMEOUT)) < 0) {
-		printk (KERN_WARNING "Failed to get K90 initial mode (error %d).\n", ret);
-	}
-	else {
+				   K90_REQUEST_GET_MODE,
+				   USB_DIR_IN | USB_TYPE_VENDOR |
+				   USB_RECIP_DEVICE, 0, 0, data, 2,
+				   USB_CTRL_SET_TIMEOUT)) < 0) {
+		printk(KERN_WARNING
+		       "Failed to get K90 initial mode (error %d).\n", ret);
+	} else {
 		switch (data[0]) {
 		case K90_MACRO_MODE_HW:
 			drvdata->macro_mode = 1;
@@ -426,55 +448,61 @@ static int k90_init_special_functions(struct hid_device *dev)
 			drvdata->macro_mode = 0;
 			break;
 		default:
-			printk (KERN_WARNING "K90 in unknown mode: %02x.\n", data[0]);
+			printk(KERN_WARNING "K90 in unknown mode: %02x.\n",
+			       data[0]);
 		}
 	}
 	/* Init LED device for backlight */
-	name_sz = strlen (dev_name (&dev->dev)) + sizeof (K90_BACKLIGHT_LED_SUFFIX);
-	name = devm_kzalloc (&dev->dev, name_sz, GFP_KERNEL);
+	name_sz =
+	    strlen(dev_name(&dev->dev)) + sizeof(K90_BACKLIGHT_LED_SUFFIX);
+	name = devm_kzalloc(&dev->dev, name_sz, GFP_KERNEL);
 	if (!name) {
 		ret = -ENOMEM;
 		goto fail_backlight;
 	}
-	snprintf (name, name_sz, "%s" K90_BACKLIGHT_LED_SUFFIX, dev_name (&dev->dev));
+	snprintf(name, name_sz, "%s" K90_BACKLIGHT_LED_SUFFIX,
+		 dev_name(&dev->dev));
 	led = &drvdata->backlight;
 	led->cdev.name = name;
 	led->cdev.max_brightness = 3;
 	led->cdev.brightness_set = k90_brightness_set;
 	led->cdev.brightness_get = k90_brightness_get;
-	INIT_WORK (&led->work, k90_backlight_work);
-	if (0 != (ret = led_classdev_register (&dev->dev, &led->cdev))) {
+	INIT_WORK(&led->work, k90_backlight_work);
+	if (0 != (ret = led_classdev_register(&dev->dev, &led->cdev))) {
 		goto fail_backlight;
 	}
 	/* Init LED device for record LED */
-	name_sz = strlen (dev_name (&dev->dev)) + sizeof (K90_RECORD_LED_SUFFIX);
-	name = devm_kzalloc (&dev->dev, name_sz, GFP_KERNEL);
+	name_sz = strlen(dev_name(&dev->dev)) + sizeof(K90_RECORD_LED_SUFFIX);
+	name = devm_kzalloc(&dev->dev, name_sz, GFP_KERNEL);
 	if (!name) {
 		ret = -ENOMEM;
 		goto fail_record_led;
 	}
-	snprintf (name, name_sz, "%s" K90_RECORD_LED_SUFFIX, dev_name (&dev->dev));
+	snprintf(name, name_sz, "%s" K90_RECORD_LED_SUFFIX,
+		 dev_name(&dev->dev));
 	led = &drvdata->record_led;
 	led->cdev.name = name;
 	led->cdev.max_brightness = 1;
 	led->cdev.brightness_set = k90_brightness_set;
 	led->cdev.brightness_get = k90_brightness_get;
-	INIT_WORK (&led->work, k90_record_led_work);
-	if (0 != (ret = led_classdev_register (&dev->dev, &led->cdev))) {
+	INIT_WORK(&led->work, k90_record_led_work);
+	if (0 != (ret = led_classdev_register(&dev->dev, &led->cdev))) {
 		goto fail_record_led;
 	}
 
 	/* Create profile devices */
 	for (i = 0; i < 3; ++i) {
-		drvdata->profile[i].profile = i+1;
-		drvdata->profile[i].dev = device_create_with_groups (
-				k90_profile_class, &dev->dev, 0,
-				&drvdata->profile[i], k90_profile_attr_groups,
-				"%s:profile%d", dev_name(&dev->dev), i+1);
+		drvdata->profile[i].profile = i + 1;
+		drvdata->profile[i].dev =
+		    device_create_with_groups(k90_profile_class, &dev->dev, 0,
+					      &drvdata->profile[i],
+					      k90_profile_attr_groups,
+					      "%s:profile%d",
+					      dev_name(&dev->dev), i + 1);
 		if (IS_ERR(drvdata->profile[i].dev)) {
 			ret = PTR_ERR(drvdata->profile[i].dev);
-			for (i = i-1; i >= 0; --i) {
-				device_unregister (drvdata->profile[i].dev);
+			for (i = i - 1; i >= 0; --i) {
+				device_unregister(drvdata->profile[i].dev);
 			}
 			goto fail_profile;
 		}
@@ -489,36 +517,36 @@ static int k90_init_special_functions(struct hid_device *dev)
 
 fail_sysfs:
 	for (i = 0; i < 3; ++i) {
-		device_unregister (drvdata->profile[i].dev);
+		device_unregister(drvdata->profile[i].dev);
 	}
 fail_profile:
-	led_classdev_unregister (&drvdata->record_led.cdev);
-	flush_work (&drvdata->record_led.work);
+	led_classdev_unregister(&drvdata->record_led.cdev);
+	flush_work(&drvdata->record_led.work);
 fail_record_led:
-	led_classdev_unregister (&drvdata->backlight.cdev);
-	flush_work (&drvdata->backlight.work);
+	led_classdev_unregister(&drvdata->backlight.cdev);
+	flush_work(&drvdata->backlight.work);
 fail_backlight:
-	kfree (drvdata);
+	kfree(drvdata);
 fail_drvdata:
-	hid_set_drvdata (dev, NULL);
+	hid_set_drvdata(dev, NULL);
 	return ret;
 }
 
 static void k90_cleanup_special_functions(struct hid_device *dev)
 {
 	int i;
-	struct k90_drvdata *drvdata = hid_get_drvdata (dev);
+	struct k90_drvdata *drvdata = hid_get_drvdata(dev);
 
 	if (drvdata) {
 		sysfs_remove_group(&dev->dev.kobj, &k90_attr_group);
 		for (i = 0; i < 3; ++i) {
-			device_unregister (drvdata->profile[i].dev);
+			device_unregister(drvdata->profile[i].dev);
 		}
-		led_classdev_unregister (&drvdata->record_led.cdev);
-		led_classdev_unregister (&drvdata->backlight.cdev);
-		flush_work (&drvdata->record_led.work);
-		flush_work (&drvdata->backlight.work);
-		kfree (drvdata);
+		led_classdev_unregister(&drvdata->record_led.cdev);
+		led_classdev_unregister(&drvdata->backlight.cdev);
+		flush_work(&drvdata->record_led.work);
+		flush_work(&drvdata->backlight.work);
+		kfree(drvdata);
 	}
 }
 
@@ -538,11 +566,11 @@ static int k90_probe(struct hid_device *dev, const struct hid_device_id *id)
 
 	if (usbif->cur_altsetting->desc.bInterfaceNumber == 0) {
 		if (0 != (ret = k90_init_special_functions(dev))) {
-			printk (KERN_WARNING "Failed to initialize K90 special functions.\n");
+			printk(KERN_WARNING
+			       "Failed to initialize K90 special functions.\n");
 		}
-	}
-	else {
-		hid_set_drvdata (dev, NULL);
+	} else {
+		hid_set_drvdata(dev, NULL);
 	}
 
 	return 0;
@@ -560,13 +588,13 @@ static void k90_remove(struct hid_device *dev)
 }
 
 static int k90_event(struct hid_device *dev, struct hid_field *field,
-		struct hid_usage *usage, __s32 value)
+		     struct hid_usage *usage, __s32 value)
 {
-	struct k90_drvdata* drvdata = hid_get_drvdata (dev);
+	struct k90_drvdata *drvdata = hid_get_drvdata(dev);
 
 	if (!drvdata)
 		return 0;
-	
+
 	switch (usage->hid & HID_USAGE) {
 	case K90_USAGE_MACRO_RECORD_START:
 		drvdata->record_led.brightness = 1;
@@ -577,7 +605,8 @@ static int k90_event(struct hid_device *dev, struct hid_field *field,
 	case K90_USAGE_M1:
 	case K90_USAGE_M2:
 	case K90_USAGE_M3:
-		drvdata->current_profile = (usage->hid & HID_USAGE) - K90_USAGE_PROFILE + 1;
+		drvdata->current_profile =
+		    (usage->hid & HID_USAGE) - K90_USAGE_PROFILE + 1;
 		break;
 	case K90_USAGE_META_OFF:
 		drvdata->meta_locked = 0;
@@ -590,7 +619,7 @@ static int k90_event(struct hid_device *dev, struct hid_field *field,
 	case K90_USAGE_LIGHT_MEDIUM:
 	case K90_USAGE_LIGHT_BRIGHT:
 		drvdata->backlight.brightness = (usage->hid & HID_USAGE) -
-				K90_USAGE_LIGHT;
+		    K90_USAGE_LIGHT;
 		break;
 	default:
 		break;
@@ -600,25 +629,27 @@ static int k90_event(struct hid_device *dev, struct hid_field *field,
 }
 
 static int k90_input_mapping(struct hid_device *dev, struct hid_input *input,
-		struct hid_field *field, struct hid_usage *usage,
-		unsigned long **bit, int *max)
+			     struct hid_field *field, struct hid_usage *usage,
+			     unsigned long **bit, int *max)
 {
 	int gkey;
 	if ((gkey = k90_usage_to_gkey(usage->hid & HID_USAGE))) {
-		hid_map_usage_clear(input, usage, bit, max, EV_KEY, k90_gkey_map[gkey-1]);
+		hid_map_usage_clear(input, usage, bit, max, EV_KEY,
+				    k90_gkey_map[gkey - 1]);
 		return 1;
 	}
 	if ((usage->hid & HID_USAGE) >= K90_USAGE_SPECIAL_MIN &&
-			(usage->hid & HID_USAGE) <= K90_USAGE_SPECIAL_MAX) {
+	    (usage->hid & HID_USAGE) <= K90_USAGE_SPECIAL_MAX) {
 		return -1;
 	}
 	return 0;
 }
 
 static const struct hid_device_id k90_devices[] = {
-	{ HID_USB_DEVICE(USB_VENDOR_ID_CORSAIR, USB_DEVICE_ID_CORSAIR_K90) },
-	{ }
+	{HID_USB_DEVICE(USB_VENDOR_ID_CORSAIR, USB_DEVICE_ID_CORSAIR_K90)},
+	{}
 };
+
 MODULE_DEVICE_TABLE(hid, k90_devices);
 
 static struct hid_driver k90_driver = {
