@@ -8,4 +8,7 @@ else
 default:
 	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules
 
+install:
+	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules_install
+
 endif
