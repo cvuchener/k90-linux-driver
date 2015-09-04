@@ -519,10 +519,10 @@ fail_sysfs:
 		device_unregister(drvdata->profile[i].dev);
 fail_profile:
 	led_classdev_unregister(&drvdata->record_led.cdev);
-	flush_work(&drvdata->record_led.work);
+	cancel_work_sync(&drvdata->record_led.work);
 fail_record_led:
 	led_classdev_unregister(&drvdata->backlight.cdev);
-	flush_work(&drvdata->backlight.work);
+	cancel_work_sync(&drvdata->backlight.work);
 fail_backlight:
 	kfree(drvdata);
 fail_drvdata:
@@ -541,8 +541,8 @@ static void k90_cleanup_special_functions(struct hid_device *dev)
 			device_unregister(drvdata->profile[i].dev);
 		led_classdev_unregister(&drvdata->record_led.cdev);
 		led_classdev_unregister(&drvdata->backlight.cdev);
-		flush_work(&drvdata->record_led.work);
-		flush_work(&drvdata->backlight.work);
+		cancel_work_sync(&drvdata->record_led.work);
+		cancel_work_sync(&drvdata->backlight.work);
 		kfree(drvdata);
 	}
 }
