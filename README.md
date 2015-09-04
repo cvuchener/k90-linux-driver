@@ -20,6 +20,17 @@ sudo tee /sys/bus/hid/drivers/hid-generic/unbind <<< "0003:1B1C:1B02.XXXX"
 ```
 Replace `XXXX` with the correct value for the first interface of the keyboard.
 
+If the modules is installed on the system, udev loads the module thanks to modules aliases but hid-generic still take over, the device can be rebound with this rule:
+```
+ATTRS{idVendor}=="1b1c", ATTRS{idProduct}=="1b02", GOTO="corsair_k90"
+GOTO="corsair_k90_end"
+
+LABEL="corsair_k90"
+ACTION=="add", SUBSYSTEM=="hid", ATTRS{bInterfaceNumber}=="00", RUN+="/bin/sh -c 'echo $kernel > /sys/bus/hid/drivers/hid-generic/unbind; echo $kernel > /sys/bus/hid/drivers/k90/bind'"
+
+LABEL="corsair_k90_end"
+```
+
 Parameters
 ----------
 
