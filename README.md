@@ -36,3 +36,7 @@ LEDs
 
 The driver create two devices in the *led* class for the backlight and the macro record led, respectively named *<devicename>:blue:backlight* and *<devicename>:red:record*.
 
+Profiles
+--------
+
+A *k90_profile* device is created for each profile. New profiles are sent to the keyboard by writing data to the binary attributes *keys*, *data* and *bindings* accordingly to the data for requests 22, 18 and 16 respectively (see [](control_messages.md)).
