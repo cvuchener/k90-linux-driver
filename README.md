@@ -47,3 +47,8 @@ LEDs
 
 The driver create two devices in the *led* class for the backlight and the macro record led, respectively named *<devicename>:blue:backlight* and *<devicename>:red:record*.
 
+Profile
+-------
+
+This driver does not expose any ABI for writing profile. You can use the user space program at https://github.com/cvuchener/k90-send-profile.
+
