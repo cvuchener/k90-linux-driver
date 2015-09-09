@@ -1,5 +1,5 @@
 ifneq ($(KERNELRELEASE),)
-	obj-m := hid-corsair-k90.o
+	obj-m := hid-corsair.o
 
 else
 	KERNELDIR ?= /lib/modules/$(shell uname -r)/build

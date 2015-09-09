@@ -26,7 +26,7 @@ ATTRS{idVendor}=="1b1c", ATTRS{idProduct}=="1b02", GOTO="corsair_k90"
 GOTO="corsair_k90_end"
 
 LABEL="corsair_k90"
-ACTION=="add", SUBSYSTEM=="hid", ATTRS{bInterfaceNumber}=="00", RUN+="/bin/sh -c 'echo $kernel > /sys/bus/hid/drivers/hid-generic/unbind; echo $kernel > /sys/bus/hid/drivers/k90/bind'"
+ACTION=="add", SUBSYSTEM=="hid", ATTRS{bInterfaceNumber}=="00", RUN+="/bin/sh -c 'echo $kernel > /sys/bus/hid/drivers/hid-generic/unbind; echo $kernel > /sys/bus/hid/drivers/corsair/bind'"
 
 LABEL="corsair_k90_end"
 ```
@@ -47,7 +47,3 @@ LEDs
 
 The driver create two devices in the *led* class for the backlight and the macro record led, respectively named *<devicename>:blue:backlight* and *<devicename>:red:record*.
 
-Profiles
---------
-
-A *k90_profile* device is created for each profile. New profiles are sent to the keyboard by writing data to the binary attributes *keys*, *data* and *bindings* accordingly to the data for requests 22, 18 and 16 respectively (see [documentation](control_messages.md)).
