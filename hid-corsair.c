@@ -142,7 +142,8 @@ static enum led_brightness k90_backlight_get(struct led_classdev *led_cdev)
 	brightness = data[4];
 	if (brightness < 0 || brightness > 3) {
 		dev_warn(dev,
-			 "Read invalid backlight brightness from hardware.\n");
+			 "Read invalid backlight brightness: %02hhx.\n",
+			 data[4]);
 		return -EIO;
 	}
 	return brightness;
@@ -253,7 +254,7 @@ static ssize_t k90_show_macro_mode(struct device *dev,
 		macro_mode = "SW";
 		break;
 	default:
-		dev_warn(dev, "K90 in unknown mode: %02x.\n",
+		dev_warn(dev, "K90 in unknown mode: %02hhx.\n",
 			 data[0]);
 		return -EIO;
 	}
@@ -312,7 +313,8 @@ static ssize_t k90_show_current_profile(struct device *dev,
 	}
 	current_profile = data[7];
 	if (current_profile < 1 || current_profile > 3) {
-		dev_warn(dev, "Read invalid current profile from hardware.\n");
+		dev_warn(dev, "Read invalid current profile: %02hhx.\n",
+			 data[7]);
 		return -EIO;
 	}
 
@@ -339,7 +341,8 @@ static ssize_t k90_store_current_profile(struct device *dev,
 			      USB_RECIP_DEVICE, profile, 0, NULL, 0,
 			      USB_CTRL_SET_TIMEOUT);
 	if (ret != 0) {
-		dev_warn(dev, "Failed to change current profile.\n");
+		dev_warn(dev, "Failed to change current profile (error %d).\n",
+			 ret);
 		return ret;
 	}
 
