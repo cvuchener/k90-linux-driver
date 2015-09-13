@@ -34,7 +34,11 @@ LABEL="corsair_k90_end"
 Parameters
 ----------
 
-- **gkey_codes** An array of 18 (comma-separated) keycodes for remapping the G keys.
+Keycodes can be changed thanks to module parameters. Each parameter is a integer array (comma-separated) containing the keycodes (see linux/input.h).
+
+- **gkey_codes** An array of 18  keycodes for remapping the G keys.
+- **recordkey_codes** An array of 2 keycodes respectively for starting and stopping recording a macro.
+- **profilekey_codes** An array of 3 keycodes for the M1/M2/M3 buttons.
 
 Sysfs
 -----
