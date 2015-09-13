@@ -76,6 +76,26 @@ static unsigned short corsair_gkey_map[K90_GKEY_COUNT] = {
 };
 
 module_param_array_named(gkey_codes, corsair_gkey_map, ushort, NULL, S_IRUGO);
+MODULE_PARM_DESC(gkey_codes, "Key codes for the G-keys");
+
+static unsigned short corsair_record_keycodes[2] = {
+	BTN_TRIGGER_HAPPY19,
+	BTN_TRIGGER_HAPPY20
+};
+
+module_param_array_named(recordkey_codes, corsair_record_keycodes, ushort,
+			 NULL, S_IRUGO);
+MODULE_PARM_DESC(recordkey_codes, "Key codes for the MR (start and stop record) button");
+
+static unsigned short corsair_profile_keycodes[3] = {
+	BTN_TRIGGER_HAPPY21,
+	BTN_TRIGGER_HAPPY22,
+	BTN_TRIGGER_HAPPY23
+};
+
+module_param_array_named(profilekey_codes, corsair_profile_keycodes, ushort,
+			 NULL, S_IRUGO);
+MODULE_PARM_DESC(profilekey_codes, "Key codes for the profile buttons");
 
 #define CORSAIR_USAGE_SPECIAL_MIN 0xf0
 #define CORSAIR_USAGE_SPECIAL_MAX 0xff
@@ -582,8 +602,37 @@ static int corsair_input_mapping(struct hid_device *dev,
 		return 1;
 	}
 	if ((usage->hid & HID_USAGE) >= CORSAIR_USAGE_SPECIAL_MIN &&
-	    (usage->hid & HID_USAGE) <= CORSAIR_USAGE_SPECIAL_MAX)
-		return -1;
+	    (usage->hid & HID_USAGE) <= CORSAIR_USAGE_SPECIAL_MAX) {
+		switch (usage->hid & HID_USAGE) {
+		case CORSAIR_USAGE_MACRO_RECORD_START:
+			hid_map_usage_clear(input, usage, bit, max, EV_KEY,
+					    corsair_record_keycodes[0]);
+			return 1;
+
+		case CORSAIR_USAGE_MACRO_RECORD_STOP:
+			hid_map_usage_clear(input, usage, bit, max, EV_KEY,
+					    corsair_record_keycodes[1]);
+			return 1;
+
+		case CORSAIR_USAGE_M1:
+			hid_map_usage_clear(input, usage, bit, max, EV_KEY,
+					    corsair_profile_keycodes[0]);
+			return 1;
+
+		case CORSAIR_USAGE_M2:
+			hid_map_usage_clear(input, usage, bit, max, EV_KEY,
+					    corsair_profile_keycodes[1]);
+			return 1;
+
+		case CORSAIR_USAGE_M3:
+			hid_map_usage_clear(input, usage, bit, max, EV_KEY,
+					    corsair_profile_keycodes[2]);
+			return 1;
+
+		default:
+			return -1;
+		}
+	}
 
 	return 0;
 }
