@@ -49,7 +49,7 @@ Sysfs
 LEDs
 ----
 
-The driver create two devices in the *led* class for the backlight and the macro record led, respectively named *<devicename>:blue:backlight* and *<devicename>:red:record*.
+The driver create two devices in the *led* class for the backlight and the macro record led, respectively named *<devicename>::backlight* and *<devicename>::record*.
 
 Profile
 -------
