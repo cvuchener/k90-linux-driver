@@ -21,7 +21,8 @@
 
 #include "hid-ids.h"
 
-#define CORSAIR_USE_K90_SPECIAL	(1<<0)
+#define CORSAIR_USE_K90_MACRO	(1<<0)
+#define CORSAIR_USE_K90_BACKLIGHT	(1<<1)
 
 struct k90_led {
 	struct led_classdev cdev;
@@ -31,13 +32,13 @@ struct k90_led {
 };
 
 struct k90_drvdata {
-	struct k90_led backlight;
 	struct k90_led record_led;
 };
 
 struct corsair_drvdata {
 	unsigned long quirks;
 	struct k90_drvdata *k90;
+	struct k90_led *backlight;
 };
 
 #define K90_GKEY_COUNT	18
@@ -367,14 +368,56 @@ static const struct attribute_group k90_attr_group = {
  * Driver functions
  */
 
-static int k90_init_special_functions(struct hid_device *dev)
+static int k90_init_backlight(struct hid_device *dev)
+{
+	int ret;
+	struct corsair_drvdata *drvdata = hid_get_drvdata(dev);
+	size_t name_sz;
+	char *name;
+
+	drvdata->backlight = kzalloc(sizeof(struct k90_led), GFP_KERNEL);
+	if (!drvdata->backlight) {
+		ret = -ENOMEM;
+		goto fail_backlight_alloc;
+	}
+
+	name_sz =
+	    strlen(dev_name(&dev->dev)) + sizeof(K90_BACKLIGHT_LED_SUFFIX);
+	name = kzalloc(name_sz, GFP_KERNEL);
+	if (!name) {
+		ret = -ENOMEM;
+		goto fail_name_alloc;
+	}
+	snprintf(name, name_sz, "%s" K90_BACKLIGHT_LED_SUFFIX,
+		 dev_name(&dev->dev));
+	drvdata->backlight->removed = 0;
+	drvdata->backlight->cdev.name = name;
+	drvdata->backlight->cdev.max_brightness = 3;
+	drvdata->backlight->cdev.brightness_set = k90_brightness_set;
+	drvdata->backlight->cdev.brightness_get = k90_backlight_get;
+	INIT_WORK(&drvdata->backlight->work, k90_backlight_work);
+	ret = led_classdev_register(&dev->dev, &drvdata->backlight->cdev);
+	if (ret != 0)
+		goto fail_register_cdev;
+
+	return 0;
+
+fail_register_cdev:
+	kfree(drvdata->backlight->cdev.name);
+fail_name_alloc:
+	kfree(drvdata->backlight);
+	drvdata->backlight = NULL;
+fail_backlight_alloc:
+	return ret;
+}
+
+static int k90_init_macro_functions(struct hid_device *dev)
 {
 	int ret;
 	struct corsair_drvdata *drvdata = hid_get_drvdata(dev);
 	struct k90_drvdata *k90;
 	size_t name_sz;
 	char *name;
-	struct k90_led *led;
 
 	k90 = kzalloc(sizeof(struct k90_drvdata), GFP_KERNEL);
 	if (!k90) {
@@ -383,49 +426,23 @@ static int k90_init_special_functions(struct hid_device *dev)
 	}
 	drvdata->k90 = k90;
 
-	/* Init LED device for backlight */
-	name_sz =
-	    strlen(dev_name(&dev->dev)) + sizeof(K90_BACKLIGHT_LED_SUFFIX);
-	name = devm_kzalloc(&dev->dev, name_sz, GFP_KERNEL);
-	if (!name) {
-		ret = -ENOMEM;
-		goto fail_backlight;
-	}
-	snprintf(name, name_sz, "%s" K90_BACKLIGHT_LED_SUFFIX,
-		 dev_name(&dev->dev));
-	led = &k90->backlight;
-	led->removed = 0;
-	led->cdev.name = name;
-	led->cdev.max_brightness = 3;
-	led->cdev.brightness_set = k90_brightness_set;
-	led->cdev.brightness_get = k90_backlight_get;
-	INIT_WORK(&led->work, k90_backlight_work);
-	ret = led_classdev_register(&dev->dev, &led->cdev);
-	if (ret != 0)
-		goto fail_backlight;
-
 	/* Init LED device for record LED */
 	name_sz = strlen(dev_name(&dev->dev)) + sizeof(K90_RECORD_LED_SUFFIX);
-	name = devm_kzalloc(&dev->dev, name_sz, GFP_KERNEL);
+	name = kzalloc(name_sz, GFP_KERNEL);
 	if (!name) {
 		ret = -ENOMEM;
-		goto fail_record_led;
+		goto fail_record_led_alloc;
 	}
 	snprintf(name, name_sz, "%s" K90_RECORD_LED_SUFFIX,
 		 dev_name(&dev->dev));
-	led = &k90->record_led;
-	led->removed = 0;
-	led->cdev.name = name;
-	led->cdev.max_brightness = 1;
-	led->cdev.brightness_set = k90_brightness_set;
-	led->cdev.brightness_get = k90_record_led_get;
-	INIT_WORK(&led->work, k90_record_led_work);
-	/*
-	 * We don't know how to read the record led is off,
-	 * it is always off when plugging the keyboard.
-	 */
+	k90->record_led.removed = 0;
+	k90->record_led.cdev.name = name;
+	k90->record_led.cdev.max_brightness = 1;
+	k90->record_led.cdev.brightness_set = k90_brightness_set;
+	k90->record_led.cdev.brightness_get = k90_record_led_get;
+	INIT_WORK(&k90->record_led.work, k90_record_led_work);
 	k90->record_led.brightness = 0;
-	ret = led_classdev_register(&dev->dev, &led->cdev);
+	ret = led_classdev_register(&dev->dev, &k90->record_led.cdev);
 	if (ret != 0)
 		goto fail_record_led;
 
@@ -441,29 +458,40 @@ fail_sysfs:
 	led_classdev_unregister(&k90->record_led.cdev);
 	cancel_work_sync(&k90->record_led.work);
 fail_record_led:
-	k90->backlight.removed = 1;
-	led_classdev_unregister(&k90->backlight.cdev);
-	cancel_work_sync(&k90->backlight.work);
-fail_backlight:
+	kfree(k90->record_led.cdev.name);
+fail_record_led_alloc:
 	kfree(k90);
 fail_drvdata:
 	drvdata->k90 = NULL;
 	return ret;
 }
 
-static void k90_cleanup_special_functions(struct hid_device *dev)
+static void k90_cleanup_backlight(struct hid_device *dev)
+{
+	struct corsair_drvdata *drvdata = hid_get_drvdata(dev);
+
+	if (drvdata->backlight) {
+		drvdata->backlight->removed = 1;
+		led_classdev_unregister(&drvdata->backlight->cdev);
+		cancel_work_sync(&drvdata->backlight->work);
+		kfree(drvdata->backlight->cdev.name);
+		kfree(drvdata->backlight);
+	}
+}
+
+static void k90_cleanup_macro_functions(struct hid_device *dev)
 {
 	struct corsair_drvdata *drvdata = hid_get_drvdata(dev);
 	struct k90_drvdata *k90 = drvdata->k90;
 
 	if (k90) {
 		sysfs_remove_group(&dev->dev.kobj, &k90_attr_group);
+
 		k90->record_led.removed = 1;
-		k90->backlight.removed = 1;
 		led_classdev_unregister(&k90->record_led.cdev);
-		led_classdev_unregister(&k90->backlight.cdev);
 		cancel_work_sync(&k90->record_led.work);
-		cancel_work_sync(&k90->backlight.work);
+		kfree(k90->record_led.cdev.name);
+
 		kfree(k90);
 	}
 }
@@ -493,11 +521,17 @@ static int corsair_probe(struct hid_device *dev, const struct hid_device_id *id)
 		return ret;
 	}
 
-	if (quirks & CORSAIR_USE_K90_SPECIAL &&
-	    usbif->cur_altsetting->desc.bInterfaceNumber == 0) {
-		ret = k90_init_special_functions(dev);
-		if (ret != 0)
-			hid_warn(dev, "Failed to initialize K90 special functions.\n");
+	if (usbif->cur_altsetting->desc.bInterfaceNumber == 0) {
+		if (quirks & CORSAIR_USE_K90_MACRO) {
+			ret = k90_init_macro_functions(dev);
+			if (ret != 0)
+				hid_warn(dev, "Failed to initialize K90 macro functions.\n");
+		}
+		if (quirks & CORSAIR_USE_K90_BACKLIGHT) {
+			ret = k90_init_backlight(dev);
+			if (ret != 0)
+				hid_warn(dev, "Failed to initialize K90 backlight.\n");
+		}
 	}
 
 	return 0;
@@ -505,12 +539,8 @@ static int corsair_probe(struct hid_device *dev, const struct hid_device_id *id)
 
 static void corsair_remove(struct hid_device *dev)
 {
-	struct usb_interface *usbif = to_usb_interface(dev->dev.parent);
-	struct corsair_drvdata *drvdata = hid_get_drvdata(dev);
-
-	if (drvdata->quirks & CORSAIR_USE_K90_SPECIAL &&
-	    usbif->cur_altsetting->desc.bInterfaceNumber == 0)
-		k90_cleanup_special_functions(dev);
+	k90_cleanup_macro_functions(dev);
+	k90_cleanup_backlight(dev);
 
 	hid_hw_stop(dev);
 }
@@ -560,7 +590,8 @@ static int corsair_input_mapping(struct hid_device *dev,
 
 static const struct hid_device_id corsair_devices[] = {
 	{ HID_USB_DEVICE(USB_VENDOR_ID_CORSAIR, USB_DEVICE_ID_CORSAIR_K90),
-		.driver_data = CORSAIR_USE_K90_SPECIAL },
+		.driver_data = CORSAIR_USE_K90_MACRO |
+			       CORSAIR_USE_K90_BACKLIGHT },
 	{}
 };
 
