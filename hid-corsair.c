@@ -117,8 +117,8 @@ module_param_array_named(gkey_codes, corsair_gkey_map, ushort, NULL, S_IRUGO);
  * LED class devices
  */
 
-#define K90_BACKLIGHT_LED_SUFFIX ":blue:backlight"
-#define K90_RECORD_LED_SUFFIX ":red:record"
+#define K90_BACKLIGHT_LED_SUFFIX "::backlight"
+#define K90_RECORD_LED_SUFFIX "::record"
 
 static enum led_brightness k90_backlight_get(struct led_classdev *led_cdev)
 {
