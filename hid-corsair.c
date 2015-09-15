@@ -23,6 +23,7 @@
 
 #define CORSAIR_USE_K90_MACRO	(1<<0)
 #define CORSAIR_USE_K90_BACKLIGHT	(1<<1)
+#define CORSAIR_RGB_KEYBOARD	(1<<2)
 
 struct k90_led {
 	struct led_classdev cdev;
@@ -530,6 +531,10 @@ static int corsair_probe(struct hid_device *dev, const struct hid_device_id *id)
 	drvdata->quirks = quirks;
 	hid_set_drvdata(dev, drvdata);
 
+	/* RGB keyboards hang if the vendor specific report is not polled */
+	if (quirks & CORSAIR_RGB_KEYBOARD)
+		dev->quirks |= HID_QUIRK_ALWAYS_POLL;
+
 	ret = hid_parse(dev);
 	if (ret != 0) {
 		hid_err(dev, "parse failed\n");
@@ -641,6 +646,10 @@ static const struct hid_device_id corsair_devices[] = {
 	{ HID_USB_DEVICE(USB_VENDOR_ID_CORSAIR, USB_DEVICE_ID_CORSAIR_K90),
 		.driver_data = CORSAIR_USE_K90_MACRO |
 			       CORSAIR_USE_K90_BACKLIGHT },
+	{ HID_USB_DEVICE(USB_VENDOR_ID_CORSAIR, USB_DEVICE_ID_CORSAIR_K70_RGB),
+		.driver_data = CORSAIR_RGB_KEYBOARD },
+	{ HID_USB_DEVICE(USB_VENDOR_ID_CORSAIR, USB_DEVICE_ID_CORSAIR_K95_RGB),
+		.driver_data = CORSAIR_RGB_KEYBOARD },
 	{}
 };
 
