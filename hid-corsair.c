@@ -160,6 +160,15 @@ static enum led_brightness k90_backlight_get(struct led_classdev *led_cdev)
 			      USB_DIR_IN | USB_TYPE_VENDOR |
 			      USB_RECIP_DEVICE, 0, 0, data, drvdata->status_len,
 			      USB_CTRL_SET_TIMEOUT);
+	{
+		char buffer[64];
+		int len = 0;
+		int i;
+		for (i = 0; i < drvdata->status_len; ++i)
+			len += snprintf (buffer+len, sizeof(buffer)-len,
+					 " %02hhx", data[i]);
+		printk(KERN_DEBUG "Corsair status: %s\n", buffer);
+	}
 
 	if (ret < 0) {
 		dev_warn(dev, "Failed to get K90 initial state (error %d).\n",
