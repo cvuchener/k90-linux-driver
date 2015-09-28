@@ -23,6 +23,7 @@
 
 #define CORSAIR_USE_K90_MACRO	(1<<0)
 #define CORSAIR_USE_K90_BACKLIGHT	(1<<1)
+#define CORSAIR_STATUS_LEN10	(1<<2)
 
 struct k90_led {
 	struct led_classdev cdev;
@@ -37,6 +38,7 @@ struct k90_drvdata {
 
 struct corsair_drvdata {
 	unsigned long quirks;
+	unsigned int status_len;
 	struct k90_drvdata *k90;
 	struct k90_led *backlight;
 };
@@ -133,6 +135,8 @@ MODULE_PARM_DESC(profilekey_codes, "Key codes for the profile buttons");
 #define K90_MACRO_LED_ON  0x0020
 #define K90_MACRO_LED_OFF 0x0040
 
+#define K90_REQUEST_STATUS_MAXLEN	10
+
 /*
  * LED class devices
  */
@@ -145,16 +149,18 @@ static enum led_brightness k90_backlight_get(struct led_classdev *led_cdev)
 	int ret;
 	struct k90_led *led = container_of(led_cdev, struct k90_led, cdev);
 	struct device *dev = led->cdev.dev->parent;
+	struct corsair_drvdata *drvdata = dev_get_drvdata(dev);
 	struct usb_interface *usbif = to_usb_interface(dev->parent);
 	struct usb_device *usbdev = interface_to_usbdev(usbif);
 	int brightness;
-	char data[8];
+	char data[K90_REQUEST_STATUS_MAXLEN];
 
 	ret = usb_control_msg(usbdev, usb_rcvctrlpipe(usbdev, 0),
 			      K90_REQUEST_STATUS,
 			      USB_DIR_IN | USB_TYPE_VENDOR |
-			      USB_RECIP_DEVICE, 0, 0, data, 8,
+			      USB_RECIP_DEVICE, 0, 0, data, drvdata->status_len,
 			      USB_CTRL_SET_TIMEOUT);
+
 	if (ret < 0) {
 		dev_warn(dev, "Failed to get K90 initial state (error %d).\n",
 			 ret);
@@ -317,15 +323,16 @@ static ssize_t k90_show_current_profile(struct device *dev,
 					char *buf)
 {
 	int ret;
+	struct corsair_drvdata *drvdata = dev_get_drvdata(dev);
 	struct usb_interface *usbif = to_usb_interface(dev->parent);
 	struct usb_device *usbdev = interface_to_usbdev(usbif);
 	int current_profile;
-	char data[8];
+	char data[K90_REQUEST_STATUS_MAXLEN];
 
 	ret = usb_control_msg(usbdev, usb_rcvctrlpipe(usbdev, 0),
 			      K90_REQUEST_STATUS,
 			      USB_DIR_IN | USB_TYPE_VENDOR |
-			      USB_RECIP_DEVICE, 0, 0, data, 8,
+			      USB_RECIP_DEVICE, 0, 0, data, drvdata->status_len,
 			      USB_CTRL_SET_TIMEOUT);
 	if (ret < 0) {
 		dev_warn(dev, "Failed to get K90 initial state (error %d).\n",
@@ -528,6 +535,10 @@ static int corsair_probe(struct hid_device *dev, const struct hid_device_id *id)
 	if (drvdata == NULL)
 		return -ENOMEM;
 	drvdata->quirks = quirks;
+	if (quirks & CORSAIR_STATUS_LEN10)
+		drvdata->status_len = 10;
+	else
+		drvdata->status_len = 8;
 	hid_set_drvdata(dev, drvdata);
 
 	ret = hid_parse(dev);
@@ -643,7 +654,8 @@ static const struct hid_device_id corsair_devices[] = {
 			       CORSAIR_USE_K90_BACKLIGHT },
 	{ HID_USB_DEVICE(USB_VENDOR_ID_CORSAIR, USB_DEVICE_ID_CORSAIR_K40),
 		.driver_data = CORSAIR_USE_K90_MACRO |
-			       CORSAIR_USE_K90_BACKLIGHT },
+			       CORSAIR_USE_K90_BACKLIGHT |
+			       CORSAIR_STATUS_LEN10 },
 	{}
 };
 
