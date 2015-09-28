@@ -641,6 +641,9 @@ static const struct hid_device_id corsair_devices[] = {
 	{ HID_USB_DEVICE(USB_VENDOR_ID_CORSAIR, USB_DEVICE_ID_CORSAIR_K90),
 		.driver_data = CORSAIR_USE_K90_MACRO |
 			       CORSAIR_USE_K90_BACKLIGHT },
+	{ HID_USB_DEVICE(USB_VENDOR_ID_CORSAIR, USB_DEVICE_ID_CORSAIR_K40),
+		.driver_data = CORSAIR_USE_K90_MACRO |
+			       CORSAIR_USE_K90_BACKLIGHT },
 	{}
 };
 
