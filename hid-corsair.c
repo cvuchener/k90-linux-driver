@@ -24,6 +24,7 @@
 #define CORSAIR_USE_K90_MACRO	(1<<0)
 #define CORSAIR_USE_K90_BACKLIGHT	(1<<1)
 #define CORSAIR_STATUS_LEN10	(1<<2)
+#define CORSAIR_K40_BACKLIGHT	(1<<3)
 
 struct k90_led {
 	struct led_classdev cdev;
@@ -124,6 +125,7 @@ MODULE_PARM_DESC(profilekey_codes, "Key codes for the profile buttons");
 /* USB control protocol */
 
 #define K90_REQUEST_BRIGHTNESS 49
+#define K40_REQUEST_BRIGHTNESS 48
 #define K90_REQUEST_MACRO_MODE 2
 #define K90_REQUEST_STATUS 4
 #define K90_REQUEST_GET_MODE 5
@@ -175,7 +177,10 @@ static enum led_brightness k90_backlight_get(struct led_classdev *led_cdev)
 			 ret);
 		return -EIO;
 	}
-	brightness = data[4];
+	if (drvdata->quirks & CORSAIR_K40_BACKLIGHT)
+		brightness = data[1];
+	else
+		brightness = data[4];
 	if (brightness < 0 || brightness > 3) {
 		dev_warn(dev,
 			 "Read invalid backlight brightness: %02hhx.\n",
@@ -206,20 +211,31 @@ static void k90_backlight_work(struct work_struct *work)
 	int ret;
 	struct k90_led *led = container_of(work, struct k90_led, work);
 	struct device *dev;
+	struct corsair_drvdata *drvdata;
 	struct usb_interface *usbif;
 	struct usb_device *usbdev;
+	__u8 request;
+	__u16 value;
 
 	if (led->removed)
 		return;
 
 	dev = led->cdev.dev->parent;
+	drvdata = dev_get_drvdata(dev);
 	usbif = to_usb_interface(dev->parent);
 	usbdev = interface_to_usbdev(usbif);
 
+	if (drvdata->quirks & CORSAIR_K40_BACKLIGHT) {
+		request = K40_REQUEST_BRIGHTNESS;
+		value = led->brightness << 8;
+	} else {
+		request = K90_REQUEST_BRIGHTNESS;
+		value = led->brightness;
+	}
+
 	ret = usb_control_msg(usbdev, usb_sndctrlpipe(usbdev, 0),
-			      K90_REQUEST_BRIGHTNESS,
-			      USB_DIR_OUT | USB_TYPE_VENDOR |
-			      USB_RECIP_DEVICE, led->brightness, 0,
+			      request, USB_DIR_OUT | USB_TYPE_VENDOR |
+			      USB_RECIP_DEVICE, value, 0,
 			      NULL, 0, USB_CTRL_SET_TIMEOUT);
 	if (ret != 0)
 		dev_warn(dev, "Failed to set backlight brightness (error: %d).\n",
@@ -664,7 +680,8 @@ static const struct hid_device_id corsair_devices[] = {
 	{ HID_USB_DEVICE(USB_VENDOR_ID_CORSAIR, USB_DEVICE_ID_CORSAIR_K40),
 		.driver_data = CORSAIR_USE_K90_MACRO |
 			       CORSAIR_USE_K90_BACKLIGHT |
-			       CORSAIR_STATUS_LEN10 },
+			       CORSAIR_STATUS_LEN10 |
+			       CORSAIR_K40_BACKLIGHT },
 	{}
 };
 
