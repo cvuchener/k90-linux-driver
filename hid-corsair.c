@@ -151,40 +151,60 @@ static enum led_brightness k90_backlight_get(struct led_classdev *led_cdev)
 	int ret;
 	struct k90_led *led = container_of(led_cdev, struct k90_led, cdev);
 	struct device *dev = led->cdev.dev->parent;
-	struct corsair_drvdata *drvdata = dev_get_drvdata(dev);
 	struct usb_interface *usbif = to_usb_interface(dev->parent);
 	struct usb_device *usbdev = interface_to_usbdev(usbif);
 	int brightness;
-	char data[K90_REQUEST_STATUS_MAXLEN];
+	char data[8];
 
 	ret = usb_control_msg(usbdev, usb_rcvctrlpipe(usbdev, 0),
 			      K90_REQUEST_STATUS,
 			      USB_DIR_IN | USB_TYPE_VENDOR |
-			      USB_RECIP_DEVICE, 0, 0, data, drvdata->status_len,
+			      USB_RECIP_DEVICE, 0, 0, data, sizeof(data),
 			      USB_CTRL_SET_TIMEOUT);
-	{
-		char buffer[64];
-		int len = 0;
-		int i;
-		for (i = 0; i < drvdata->status_len; ++i)
-			len += snprintf (buffer+len, sizeof(buffer)-len,
-					 " %02hhx", data[i]);
-		printk(KERN_DEBUG "Corsair status: %s\n", buffer);
-	}
 
 	if (ret < 0) {
 		dev_warn(dev, "Failed to get K90 initial state (error %d).\n",
 			 ret);
 		return -EIO;
 	}
-	if (drvdata->quirks & CORSAIR_K40_BACKLIGHT)
-		brightness = data[1];
-	else
-		brightness = data[4];
+
+	brightness = data[4];
 	if (brightness < 0 || brightness > 3) {
 		dev_warn(dev,
 			 "Read invalid backlight brightness: %02hhx.\n",
 			 data[4]);
+		return -EIO;
+	}
+	return brightness;
+}
+
+static enum led_brightness k40_backlight_get(struct led_classdev *led_cdev)
+{
+	int ret;
+	struct k90_led *led = container_of(led_cdev, struct k90_led, cdev);
+	struct device *dev = led->cdev.dev->parent;
+	struct usb_interface *usbif = to_usb_interface(dev->parent);
+	struct usb_device *usbdev = interface_to_usbdev(usbif);
+	int brightness;
+	char data[10];
+
+	ret = usb_control_msg(usbdev, usb_rcvctrlpipe(usbdev, 0),
+			      K90_REQUEST_STATUS,
+			      USB_DIR_IN | USB_TYPE_VENDOR |
+			      USB_RECIP_DEVICE, 0, 0, data, sizeof(data),
+			      USB_CTRL_SET_TIMEOUT);
+
+	if (ret < 0) {
+		dev_warn(dev, "Failed to get backlight brightness (error %d).\n",
+			 ret);
+		return -EIO;
+	}
+
+	brightness = data[1];
+	if (brightness < 0 || brightness > 3) {
+		dev_warn(dev,
+			 "Read invalid backlight brightness: %02hhx.\n",
+			 data[1]);
 		return -EIO;
 	}
 	return brightness;
@@ -211,31 +231,45 @@ static void k90_backlight_work(struct work_struct *work)
 	int ret;
 	struct k90_led *led = container_of(work, struct k90_led, work);
 	struct device *dev;
-	struct corsair_drvdata *drvdata;
 	struct usb_interface *usbif;
 	struct usb_device *usbdev;
-	__u8 request;
-	__u16 value;
 
 	if (led->removed)
 		return;
 
 	dev = led->cdev.dev->parent;
-	drvdata = dev_get_drvdata(dev);
 	usbif = to_usb_interface(dev->parent);
 	usbdev = interface_to_usbdev(usbif);
 
-	if (drvdata->quirks & CORSAIR_K40_BACKLIGHT) {
-		request = K40_REQUEST_BRIGHTNESS;
-		value = led->brightness << 8;
-	} else {
-		request = K90_REQUEST_BRIGHTNESS;
-		value = led->brightness;
-	}
+	ret = usb_control_msg(usbdev, usb_sndctrlpipe(usbdev, 0),
+			      K90_REQUEST_BRIGHTNESS,
+			      USB_DIR_OUT | USB_TYPE_VENDOR | USB_RECIP_DEVICE,
+			      led->brightness, 0,
+			      NULL, 0, USB_CTRL_SET_TIMEOUT);
+	if (ret != 0)
+		dev_warn(dev, "Failed to set backlight brightness (error: %d).\n",
+			 ret);
+}
+
+static void k40_backlight_work(struct work_struct *work)
+{
+	int ret;
+	struct k90_led *led = container_of(work, struct k90_led, work);
+	struct device *dev;
+	struct usb_interface *usbif;
+	struct usb_device *usbdev;
+
+	if (led->removed)
+		return;
+
+	dev = led->cdev.dev->parent;
+	usbif = to_usb_interface(dev->parent);
+	usbdev = interface_to_usbdev(usbif);
 
 	ret = usb_control_msg(usbdev, usb_sndctrlpipe(usbdev, 0),
-			      request, USB_DIR_OUT | USB_TYPE_VENDOR |
-			      USB_RECIP_DEVICE, value, 0,
+			      K40_REQUEST_BRIGHTNESS,
+			      USB_DIR_OUT | USB_TYPE_VENDOR | USB_RECIP_DEVICE,
+			      led->brightness << 8, 0,
 			      NULL, 0, USB_CTRL_SET_TIMEOUT);
 	if (ret != 0)
 		dev_warn(dev, "Failed to set backlight brightness (error: %d).\n",
@@ -446,8 +480,13 @@ static int k90_init_backlight(struct hid_device *dev)
 	drvdata->backlight->cdev.name = name;
 	drvdata->backlight->cdev.max_brightness = 3;
 	drvdata->backlight->cdev.brightness_set = k90_brightness_set;
-	drvdata->backlight->cdev.brightness_get = k90_backlight_get;
-	INIT_WORK(&drvdata->backlight->work, k90_backlight_work);
+	if (drvdata->quirks & CORSAIR_K40_BACKLIGHT) {
+		drvdata->backlight->cdev.brightness_get = k40_backlight_get;
+		INIT_WORK(&drvdata->backlight->work, k40_backlight_work);
+	} else {
+		drvdata->backlight->cdev.brightness_get = k90_backlight_get;
+		INIT_WORK(&drvdata->backlight->work, k90_backlight_work);
+	}
 	ret = led_classdev_register(&dev->dev, &drvdata->backlight->cdev);
 	if (ret != 0)
 		goto fail_register_cdev;
