@@ -1,5 +1,10 @@
-USB Control Messages for the K90 keyboard
-=========================================
+USB Control Messages
+====================
+
+This protocol is used by:
+ - Vengeance K90 (1b02)
+ - Vengeance K95?
+ - Gaming K40 (1b0e)
 
 Request type use the vendor bit so it is 0x40 for out messages and 0xC0 for in messages.
 
