@@ -488,7 +488,7 @@ static int corsair_init_backlight(struct hid_device *dev)
 		INIT_WORK(&drvdata->backlight->work, k90_backlight_work);
 		break;
 	default:
-		hid_warn(dev, "Backlight not supported for this device\n");
+		hid_warn(dev, "Backlight not supported for this device.\n");
 		ret = -EIO;
 		goto fail_register_cdev;
 	}
