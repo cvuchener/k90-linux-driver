@@ -22,9 +22,7 @@
 #include "hid-ids.h"
 
 #define CORSAIR_USE_K90_MACRO	(1<<0)
-#define CORSAIR_USE_K90_BACKLIGHT	(1<<1)
-#define CORSAIR_STATUS_LEN10	(1<<2)
-#define CORSAIR_K40_BACKLIGHT	(1<<3)
+#define CORSAIR_USE_BACKLIGHT	(1<<1)
 
 struct k90_led {
 	struct led_classdev cdev;
@@ -454,7 +452,7 @@ static const struct attribute_group k90_attr_group = {
  * Driver functions
  */
 
-static int k90_init_backlight(struct hid_device *dev)
+static int corsair_init_backlight(struct hid_device *dev)
 {
 	int ret;
 	struct corsair_drvdata *drvdata = hid_get_drvdata(dev);
@@ -480,12 +478,19 @@ static int k90_init_backlight(struct hid_device *dev)
 	drvdata->backlight->cdev.name = name;
 	drvdata->backlight->cdev.max_brightness = 3;
 	drvdata->backlight->cdev.brightness_set = k90_brightness_set;
-	if (drvdata->quirks & CORSAIR_K40_BACKLIGHT) {
+	switch (dev->product) {
+	case USB_DEVICE_ID_CORSAIR_K40:
 		drvdata->backlight->cdev.brightness_get = k40_backlight_get;
 		INIT_WORK(&drvdata->backlight->work, k40_backlight_work);
-	} else {
+		break;
+	case USB_DEVICE_ID_CORSAIR_K90:
 		drvdata->backlight->cdev.brightness_get = k90_backlight_get;
 		INIT_WORK(&drvdata->backlight->work, k90_backlight_work);
+		break;
+	default:
+		hid_warn(dev, "Backlight not supported for this device\n");
+		ret = -EIO;
+		goto fail_register_cdev;
 	}
 	ret = led_classdev_register(&dev->dev, &drvdata->backlight->cdev);
 	if (ret != 0)
@@ -599,10 +604,17 @@ static int corsair_probe(struct hid_device *dev, const struct hid_device_id *id)
 	if (drvdata == NULL)
 		return -ENOMEM;
 	drvdata->quirks = quirks;
-	if (quirks & CORSAIR_STATUS_LEN10)
+
+	switch (dev->product) {
+	case USB_DEVICE_ID_CORSAIR_K40:
 		drvdata->status_len = 10;
-	else
+		break;
+	case USB_DEVICE_ID_CORSAIR_K90:
+	default:
 		drvdata->status_len = 8;
+		break;
+	}
+
 	hid_set_drvdata(dev, drvdata);
 
 	ret = hid_parse(dev);
@@ -622,10 +634,10 @@ static int corsair_probe(struct hid_device *dev, const struct hid_device_id *id)
 			if (ret != 0)
 				hid_warn(dev, "Failed to initialize K90 macro functions.\n");
 		}
-		if (quirks & CORSAIR_USE_K90_BACKLIGHT) {
-			ret = k90_init_backlight(dev);
+		if (quirks & CORSAIR_USE_BACKLIGHT) {
+			ret = corsair_init_backlight(dev);
 			if (ret != 0)
-				hid_warn(dev, "Failed to initialize K90 backlight.\n");
+				hid_warn(dev, "Failed to initialize backlight.\n");
 		}
 	}
 
@@ -715,12 +727,10 @@ static int corsair_input_mapping(struct hid_device *dev,
 static const struct hid_device_id corsair_devices[] = {
 	{ HID_USB_DEVICE(USB_VENDOR_ID_CORSAIR, USB_DEVICE_ID_CORSAIR_K90),
 		.driver_data = CORSAIR_USE_K90_MACRO |
-			       CORSAIR_USE_K90_BACKLIGHT },
+			       CORSAIR_USE_BACKLIGHT },
 	{ HID_USB_DEVICE(USB_VENDOR_ID_CORSAIR, USB_DEVICE_ID_CORSAIR_K40),
 		.driver_data = CORSAIR_USE_K90_MACRO |
-			       CORSAIR_USE_K90_BACKLIGHT |
-			       CORSAIR_STATUS_LEN10 |
-			       CORSAIR_K40_BACKLIGHT },
+			       CORSAIR_USE_BACKLIGHT },
 	{}
 };
 
